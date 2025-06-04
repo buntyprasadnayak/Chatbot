@@ -1,22 +1,22 @@
 from flask import Flask, request, jsonify
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from flask_cors import CORS
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
 
 app = Flask(__name__)
+CORS(app)
 
-# Loading the model (make sure to have sufficient GPU memory)
-model_name = "tiiuae/falcon-7b-instruct"
+model_name = "mistralai/Mistral-7B-Instruct-v0.1"
 
-print("Loading model and tokenizer...")
+print("Loading Mistral model...")
+
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
-    device_map="auto",
-    torch_dtype=torch.bfloat16,  # or float16 if needed
-    trust_remote_code=True
+    device_map={"": "cpu"},  # Runs on CPU
+    torch_dtype=torch.float32  # Use float32 on CPU
 )
 
-# Use pipeline for easy generation
 generator = pipeline(
     "text-generation",
     model=model,
@@ -30,11 +30,13 @@ generator = pipeline(
 @app.route("/chat", methods=["POST"])
 def chat():
     user_input = request.json.get("message", "")
-    prompt = f"User: {user_input}\nAssistant:"
+    prompt = f"[INST] {user_input} [/INST]"
     result = generator(prompt)[0]["generated_text"]
-    # Remove the prompt from the result if needed
-    response = result.split("Assistant:")[-1].strip()
-    return jsonify({"response": response})
+    return jsonify({"response": result.split('[/INST]')[-1].strip()})
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Mistral Chatbot Backend Running!"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
