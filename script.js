@@ -5,7 +5,7 @@ const chatInput = document.querySelector(".chat-input textarea");
 const sendChatBtn = document.querySelector(".chat-input span");
 
 let userMessage = null;
-const API_URL = "http://localhost:5000/chat";
+const API_URL = "https://buntyprasadnayak-chatbot.hf.space/chat";
 const inputInitHeight = chatInput.scrollHeight;
 
 const createChatLi = (message, className) => {
