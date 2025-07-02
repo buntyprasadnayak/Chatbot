@@ -1,0 +1,93 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+import torch
+import requests
+app = Flask(__name__)
+CORS(app)
+
+# === CONFIGURATION ===
+USE_MISTRAL = True  # Set to True if using Mistral 7B (not recommended on CPU)
+LOCAL_MODEL = "distilgpt2"
+MISTRAL_MODEL = "mistralai/mistral-small-3.2-24b-instruct:free"
+
+
+# === LOAD MODEL ===
+if USE_MISTRAL:
+    print("🔄 Loading Mistral 7B model (this may take several minutes)...")
+    model_name = MISTRAL_MODEL
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        device_map={"": "cpu"},         # use CPU
+        torch_dtype=torch.float32       # float32 for CPU compatibility
+    )
+    generator = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+        max_new_tokens=200,
+        do_sample=True,
+        temperature=0.7,
+        top_p=0.9
+    )
+    print("✅ Mistral model loaded.")
+else:
+    print("⚡ Using lightweight distilgpt2 for local testing.")
+    tokenizer = AutoTokenizer.from_pretrained(LOCAL_MODEL)
+    model = AutoModelForCausalLM.from_pretrained(LOCAL_MODEL)
+    generator = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+        max_new_tokens=100,
+        do_sample=True,
+        temperature=0.7,
+        top_p=0.9
+    )
+    print("✅ distilgpt2 model loaded.")
+
+# === ROUTES ===
+
+# @app.route("/chat", methods=["POST"])
+# def chat():
+#     data = request.get_json()
+#     user_input = data.get("message", "")
+    
+#     if USE_MISTRAL:
+#         prompt = f"[INST] {user_input} [/INST]"
+#         result = generator(prompt)[0]["generated_text"]
+#         response = result.split('[/INST]')[-1].strip()
+#     else:
+#         result = generator(user_input)[0]["generated_text"]
+#         response = result[len(user_input):].strip()
+    
+#     return jsonify({"response": response})
+
+
+
+OPENROUTER_API_KEY = "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"  # Put your key here
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    user_input = request.json.get("message", "")
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "mistralai/mistral-7b-instruct",  # or openai/gpt-3.5-turbo
+        "messages": [{"role": "user", "content": user_input}]
+    }
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+    reply = response.json()["choices"][0]["message"]["content"]
+    return jsonify({"response": reply})
+
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Chatbot backend is running!"
+
+# === MAIN ===
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
