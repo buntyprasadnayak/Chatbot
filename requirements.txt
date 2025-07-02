@@ -1,4 +1,9 @@
+
 flask
 transformers
 torch
 accelerate
+flask-cors
+requests
+gunicorn
+
